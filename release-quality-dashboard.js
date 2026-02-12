@@ -239,16 +239,24 @@ class ReleaseQualityDashboard extends HTMLElement {
     this.hideError();
     try {
       var res = await fetch('/cc-ui/v1/clusters/' + encodeURIComponent(clusterId) + '/deployments');
-      if (!res.ok) throw new Error('Failed to load releases (' + res.status + ')');
+      if (!res.ok) throw new Error('Failed to load releases (HTTP ' + res.status + ')');
       var data = await res.json();
-      this.deployments = data.deployments || [];
-      this.deploymentsStats = data.deploymentsStats || null;
+
+      // Handle both direct array and wrapped object responses
+      if (Array.isArray(data)) {
+        this.deployments = data;
+        this.deploymentsStats = null;
+      } else {
+        this.deployments = data.deployments || data.content || [];
+        this.deploymentsStats = data.deploymentsStats || null;
+      }
+
       this.filterStatus = 'ALL';
       this.filterType = 'ALL';
       this.currentPage = 0;
       this.buildDashboard();
     } catch (err) {
-      this.showError(err.message);
+      this.showError('Error loading releases: ' + err.message);
       this.clearDashboard();
     } finally {
       this.isLoadingDeployments = false;
@@ -267,7 +275,8 @@ class ReleaseQualityDashboard extends HTMLElement {
 
   buildDashboard() {
     var content = this.shadowRoot.getElementById('content-area');
-    if (this.deployments.length === 0) {
+
+    if (!this.deployments || this.deployments.length === 0) {
       content.innerHTML = '<div class="empty-state"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;opacity:0.4;"><path d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg><p>No releases found for this environment.</p></div>';
       return;
     }
@@ -303,9 +312,14 @@ class ReleaseQualityDashboard extends HTMLElement {
 
     this.setupDashboardListeners();
     this.updateTable();
-    this.drawStatusChart(statusCounts);
-    this.drawTypeChart(typeCounts);
-    this.drawDurationChart();
+
+    // Draw charts after a frame to ensure canvas elements are laid out
+    var self = this;
+    requestAnimationFrame(function() {
+      try { self.drawStatusChart(statusCounts); } catch (e) { console.error('Status chart error:', e); }
+      try { self.drawTypeChart(typeCounts); } catch (e) { console.error('Type chart error:', e); }
+      try { self.drawDurationChart(); } catch (e) { console.error('Duration chart error:', e); }
+    });
   }
 
   setupDashboardListeners() {
