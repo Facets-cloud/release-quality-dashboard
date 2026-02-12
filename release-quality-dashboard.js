@@ -168,10 +168,13 @@ class ReleaseQualityDashboard extends HTMLElement {
     this.shadowRoot.getElementById('env-select').addEventListener('change', (e) => {
       var val = e.target.value;
       if (!val) return;
-      var env = this.environments.find(function(c) { return c.clusterName === val || c.name === val; });
+      var env = this.environments.find(function(c) {
+        var name = (c.cluster && c.cluster.name) || c.clusterName || c.name;
+        return name === val || c.id === val;
+      });
       if (env) {
         this.selectedEnvironment = val;
-        this.selectedClusterId = env.clusterId || env.id;
+        this.selectedClusterId = (env.cluster && env.cluster.id) || env.clusterId || env.id;
         this.fetchDeployments(this.selectedClusterId);
       }
     });
@@ -224,7 +227,7 @@ class ReleaseQualityDashboard extends HTMLElement {
       return;
     }
     sel.innerHTML = '<option value="">-- Select Environment --</option>' + this.environments.map(function(e) {
-      var name = e.clusterName || e.name || e.id;
+      var name = (e.cluster && e.cluster.name) || e.clusterName || e.name || e.id;
       return '<option value="' + name + '">' + name + '</option>';
     }).join('');
     sel.disabled = false;
